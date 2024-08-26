@@ -1,24 +1,38 @@
 package godivert
 
 import (
+	"examples/header"
 	"fmt"
-	"github.com/williamfhe/godivert/header"
 	"net"
 )
 
-// Represents a packet
+// Packet 代表一个网络数据包
 type Packet struct {
-	Raw       []byte
-	Addr      *WinDivertAddress
+	// Raw 包含原始的二进制数据
+	Raw []byte
+
+	// Addr 包含数据包的地址信息（例如源地址和目标地址）
+	Addr *WinDivertAddress
+
+	// PacketLen 表示数据包的长度
 	PacketLen uint
 
-	IpHdr      header.IPHeader
+	// IpHdr 包含数据包的 IP 头信息
+	IpHdr header.IPHeader
+
+	// NextHeader 包含数据包的下一个协议头信息（例如 TCP 或 UDP）
 	NextHeader header.ProtocolHeader
 
-	ipVersion      int
-	hdrLen         int
+	// ipVersion 表示 IP 版本（例如 IPv4 或 IPv6）
+	ipVersion int
+
+	// hdrLen 表示 IP 头的长度
+	hdrLen int
+
+	// nextHeaderType 表示下一个协议头的类型（例如 TCP 或 UDP）
 	nextHeaderType uint8
 
+	// parsed 表示数据包是否已经被解析
 	parsed bool
 }
 
@@ -50,6 +64,26 @@ func (p *Packet) ParseHeaders() {
 	}
 
 	p.parsed = true
+}
+
+// SetTCPHeader 方法将传入的 TCPHeader 对象的数据替换到 packet.Raw 中
+func (p *Packet) UpdateTCPHeader() {
+	if tcpHeader, ok := p.NextHeader.(header.ProtocolHeader).(*header.TCPHeader); ok {
+		val := tcpHeader.Raw
+		hdrLen := p.hdrLen
+		//如果新负载的长度与当前负载长度相同，则直接替换；否则，重新构建整个 Raw 数据。
+		if len(val) == len(p.Raw[hdrLen:]) {
+			copy(p.Raw[hdrLen:], val)
+		} else {
+			p.Raw = append(p.Raw[:hdrLen], val...)
+			// 更新包长度字段
+			if iPv4Header, ok := p.IpHdr.(header.IPHeader).(*header.IPv4Header); ok {
+				totalLength := uint16(len(p.Raw))
+				iPv4Header.SetTotalLen(totalLength)
+			}
+			p.PacketLen = uint(len(p.Raw))
+		}
+	}
 }
 
 func (p *Packet) String() string {
@@ -169,8 +203,13 @@ func (p *Packet) NextHeaderProtocolName() string {
 // Inject the packet on the Network Stack
 // If the packet has been modified calls WinDivertHelperCalcChecksum to get a new checksum
 func (p *Packet) Send(wd *WinDivertHandle) (uint, error) {
+	// 检查数据包是否已解析
 	if p.parsed && (p.IpHdr.NeedNewChecksum() || p.NextHeader != nil && p.NextHeader.NeedNewChecksum()) {
-		wd.HelperCalcChecksum(p)
+		// 调用 HelperCalcChecksum 方法重新计算校验和
+		err := wd.HelperCalcChecksum(p)
+		if err != nil {
+			fmt.Println("HelperCalcChecksum Error:", err)
+		}
 	}
 	return wd.Send(p)
 }

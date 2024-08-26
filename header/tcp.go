@@ -10,12 +10,15 @@ import (
 type TCPHeader struct {
 	Raw      []byte
 	Modified bool
+	Payload  []byte
 }
 
+// NewTCPHeader creates a new TCPHeader with the given raw data.
 func NewTCPHeader(raw []byte) *TCPHeader {
 	hdrLen := (raw[12] >> 4) * 4
 	return &TCPHeader{
-		Raw: raw[:hdrLen],
+		Raw:     raw,          // Raw 字段被赋值为整个 raw 切片。
+		Payload: raw[hdrLen:], // Payload 字段被赋值为 raw 切片从 hdrLen 开始到末尾的部分，这表示 TCP 负载数据。
 	}
 }
 
@@ -40,8 +43,27 @@ func (h *TCPHeader) String() string {
 		"\t\tCheckSum=%#x\n"+
 		"\t\tUrgPtr=%d\n"+
 		"\t\tOptions=%v\n"+
+		"\t\tRaw=%v\n"+
+		"\t\tPayload=%v\n"+
 		"\t}\n",
-		srcPort, dstPort, h.SeqNum(), h.AckNum(), h.HeaderLen(), h.Reserved(), h.NS(), h.CWR(), h.ECE(), h.URG(), h.ACK(), h.PSH(), h.RST(), h.SYN(), h.FIN(), h.Window(), h.Checksum(), h.UrgPtr(), h.Options())
+		srcPort, dstPort, h.SeqNum(), h.AckNum(), h.HeaderLen(), h.Reserved(), h.NS(), h.CWR(), h.ECE(), h.URG(), h.ACK(), h.PSH(), h.RST(), h.SYN(), h.FIN(), h.Window(), h.Checksum(), h.UrgPtr(), h.Options(), h.Raw, h.Payload)
+}
+
+func (h *TCPHeader) GetPayload() []byte {
+	return h.Payload
+}
+
+// SetPayload sets the packet payload data and updates the Raw field accordingly.
+func (h *TCPHeader) SetPayload(val []byte) {
+	hdrLen := (h.Raw[12] >> 4) * 4
+	//如果新负载的长度与当前负载长度相同，则直接替换；否则，重新构建整个 Raw 数据。
+	if len(val) == len(h.Payload) {
+		copy(h.Raw[hdrLen:], val)
+	} else {
+		h.Raw = append(h.Raw[:hdrLen], val...)
+	}
+	h.Payload = val
+	h.Modified = true
 }
 
 // Reads the header's bytes and returns the source port
@@ -78,6 +100,20 @@ func (h *TCPHeader) SeqNum() uint32 {
 // Reads the header's bytes and returns the acknowledgment number
 func (h *TCPHeader) AckNum() uint32 {
 	return binary.BigEndian.Uint32(h.Raw[8:12])
+}
+
+// Sets the sequence number
+func (h *TCPHeader) SetSeqNum(seqNum uint32) error {
+	h.Modified = true
+	binary.BigEndian.PutUint32(h.Raw[4:8], seqNum)
+	return nil
+}
+
+// Sets the acknowledgment number
+func (h *TCPHeader) SetAckNum(ackNum uint32) error {
+	h.Modified = true
+	binary.BigEndian.PutUint32(h.Raw[8:12], ackNum)
+	return nil
 }
 
 // Reads the header's bytes and returns the length of the header in bytes
