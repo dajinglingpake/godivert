@@ -2,7 +2,6 @@ package godivert
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -171,11 +170,11 @@ func (wd *WinDivertHandle) Send(packet *Packet) (uint, error) {
 	}
 
 	// 调试输出
-	fmt.Printf("handle: %v\n", wd.handle)
-	fmt.Printf("packet.Raw: %v\n", packet.Raw)
-	fmt.Printf("packet.PacketLen: %v\n", packet.PacketLen)
-	fmt.Printf("sendLen: %v\n", sendLen)
-	fmt.Printf("packet.Addr: %v\n", packet.Addr)
+	//fmt.Printf("handle: %v\n", wd.handle)
+	//fmt.Printf("packet.Raw: %v\n", packet.Raw)
+	//fmt.Printf("packet.PacketLen: %v\n", packet.PacketLen)
+	//fmt.Printf("sendLen: %v\n", sendLen)
+	//fmt.Printf("packet.Addr: %v\n", packet.Addr)
 
 	success, _, err := winDivertSend.Call(
 		wd.handle, // handle: 一个有效的 WinDivert 句柄，由 WinDivertOpen() 创建
