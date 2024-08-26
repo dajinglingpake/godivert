@@ -126,6 +126,11 @@ func (h *IPv4Header) SetDstIP(ip net.IP) {
 	copy(h.Raw[16:20], ip[12:16])
 }
 
+func (h *IPv4Header) SetTotalLen(totalLength uint16) {
+	h.Modified = true
+	binary.BigEndian.PutUint16(h.Raw[2:4], totalLength)
+}
+
 // Returns true if the header has been modified
 func (h *IPv4Header) NeedNewChecksum() bool {
 	return h.Modified
