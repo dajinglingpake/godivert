@@ -8,6 +8,9 @@ import (
 
 // Packet 代表一个网络数据包
 type Packet struct {
+	// 保存原始缓冲区
+	Buffer []byte
+
 	// Raw 包含原始的二进制数据
 	Raw []byte
 

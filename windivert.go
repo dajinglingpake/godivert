@@ -2,6 +2,7 @@ package godivert
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -95,13 +96,14 @@ func (wd *WinDivertHandle) Close() error {
 
 // Divert a packet from the Network Stack
 // https://reqrypt.org/windivert-doc.html#divert_recv
+// api要求要尽可能的快读取数据包，所以消费之前可以提前读取
 func (wd *WinDivertHandle) Recv() (*Packet, error) {
 	//如果 WinDivertHandle 对象的 open 属性为 false，则返回一个错误，表示句柄未打开，无法接收数据包。
 	if !wd.open {
 		return nil, errors.New("can't receive, the handle isn't open")
 	}
-	//创建一个字节数组 packetBuffer，用于存储接收到的数据包。数组的大小由 PacketBufferSize 常量定义。
-	packetBuffer := make([]byte, PacketBufferSize)
+	// 从缓冲池中获取一个字节数组 packetBuffer
+	packetBuffer := GetBuffer()
 	//定义了一个 packetLen 变量，用于存储接收到的数据包的长度。
 	var packetLen uint
 	//用于存储数据包的地址信息，类型为 WinDivertAddress。
@@ -122,9 +124,11 @@ func (wd *WinDivertHandle) Recv() (*Packet, error) {
 		Raw:       packetBuffer[:packetLen], //截获的数据包的原始字节数组。
 		Addr:      &addr,                    //数据包的地址信息。
 		PacketLen: packetLen,                //数据包的长度。
+		Buffer:    packetBuffer,             // 保存原始缓冲区
 	}
 
 	return packet, nil
+
 }
 
 // Inject the packet on the Network Stack
@@ -182,6 +186,9 @@ func (wd *WinDivertHandle) Send(packet *Packet) (uint, error) {
 		uintptr(packet.PacketLen),                 // packetLen: pPacket 缓冲区的总长度
 		uintptr(unsafe.Pointer(&sendLen)),         // pSendLen: 实际注入的字节数，可以为 NULL
 		uintptr(unsafe.Pointer(packet.Addr)))      // pAddr: 要注入的数据包的地址
+
+	// 将缓冲区放回缓冲池
+	ReturnBuffer(packet.Buffer, int(packet.PacketLen))
 
 	if success == 0 {
 		return 0, err
@@ -254,9 +261,11 @@ func HelperEvalFilter(packet *Packet, filter string) (bool, error) {
 // 这个函数的主要功能是不断地捕获网络数据包并将其发送到一个通道中，直到发生错误或句柄关闭为止。它是一个典型的生产者-消费者模式的实现，recvLoop 方法作为生产者不断地捕获数据包并将其发送到通道，而消费者可以从通道中接收数据包并进行处理。
 func (wd *WinDivertHandle) recvLoop(packetChan chan<- *Packet) {
 	for wd.open {
+		// 读取数据放到缓冲队列中，这样如果消费比较慢也能提前读取，避免包丢失
 		packet, err := wd.Recv()
 		if err != nil {
 			//close(packetChan)
+			fmt.Println("recvLoop Recv Error:", err)
 			break
 		}
 
@@ -270,6 +279,7 @@ func (wd *WinDivertHandle) Packets() (chan *Packet, error) {
 		return nil, errors.New("the handle isn't open")
 	}
 	packetChan := make(chan *Packet, PacketChanCapacity)
+	// 异步把数据读到缓冲队列中
 	go wd.recvLoop(packetChan)
 	return packetChan, nil
 }
