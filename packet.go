@@ -37,11 +37,7 @@ type Packet struct {
 	parsed bool
 
 	// 保存原始缓冲区
-	buffer []byte
-}
-
-func (p *Packet) getBuffer() []byte {
-	return p.buffer
+	Buffer []byte
 }
 
 // Parse the packet's headers

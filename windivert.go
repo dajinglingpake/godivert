@@ -124,7 +124,7 @@ func (wd *WinDivertHandle) Recv() (*Packet, error) {
 		Raw:       packetBuffer[:packetLen], //截获的数据包的原始字节数组。
 		Addr:      &addr,                    //数据包的地址信息。
 		PacketLen: packetLen,                //数据包的长度。
-		buffer:    packetBuffer,             // 保存原始缓冲区
+		Buffer:    packetBuffer,             // 保存原始缓冲区
 	}
 
 	return packet, nil
@@ -188,7 +188,7 @@ func (wd *WinDivertHandle) Send(packet *Packet) (uint, error) {
 		uintptr(unsafe.Pointer(packet.Addr)))      // pAddr: 要注入的数据包的地址
 
 	// 将缓冲区放回缓冲池
-	ReturnBuffer(packet.getBuffer(), int(packet.PacketLen))
+	ReturnBuffer(packet.Buffer, int(packet.PacketLen))
 
 	if success == 0 {
 		return 0, err
