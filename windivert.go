@@ -124,7 +124,7 @@ func (wd *WinDivertHandle) Recv() (*Packet, error) {
 		Raw:       packetBuffer[:packetLen], //截获的数据包的原始字节数组。
 		Addr:      &addr,                    //数据包的地址信息。
 		PacketLen: packetLen,                //数据包的长度。
-		Buffer:    packetBuffer,             // 保存原始缓冲区
+		buffer:    packetBuffer,             // 保存原始缓冲区
 	}
 
 	return packet, nil
@@ -188,7 +188,7 @@ func (wd *WinDivertHandle) Send(packet *Packet) (uint, error) {
 		uintptr(unsafe.Pointer(packet.Addr)))      // pAddr: 要注入的数据包的地址
 
 	// 将缓冲区放回缓冲池
-	ReturnBuffer(packet.Buffer, int(packet.PacketLen))
+	ReturnBuffer(packet.getBuffer(), int(packet.PacketLen))
 
 	if success == 0 {
 		return 0, err
@@ -200,12 +200,18 @@ func (wd *WinDivertHandle) Send(packet *Packet) (uint, error) {
 // Calls WinDivertHelperCalcChecksum to calculate the packet's chacksum
 // https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
 func (wd *WinDivertHandle) HelperCalcChecksum(packet *Packet) error {
+	initialPacketLen := packet.PacketLen
+
 	success, _, err := winDivertHelperCalcChecksums.Call(
 		uintptr(unsafe.Pointer(&packet.Raw[0])), //将数据包的原始字节数组 Raw 的首地址转换为 uintptr 类型。unsafe.Pointer 用于将 Go 的指针类型转换为通用指针类型，然后再转换为 uintptr
 		uintptr(packet.PacketLen),               //数据包的长度，直接转换为 uintptr 类型。
 		uintptr(unsafe.Pointer(&packet.Addr)),   //数据包的地址信息的首地址，同样通过 unsafe.Pointer 转换为 uintptr。
 		uintptr(0))
 	//用于控制校验和计算的标志，这里传递 0 表示计算所有类型的校验和
+	if initialPacketLen != packet.PacketLen {
+		//fmt.Printf("After Call PacketLen: %d\n", packet.PacketLen)
+		packet.PacketLen = initialPacketLen
+	}
 
 	if success == 0 {
 		return err

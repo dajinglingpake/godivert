@@ -8,8 +8,6 @@ import (
 
 // Packet 代表一个网络数据包
 type Packet struct {
-	// 保存原始缓冲区
-	Buffer []byte
 
 	// Raw 包含原始的二进制数据
 	Raw []byte
@@ -37,6 +35,13 @@ type Packet struct {
 
 	// parsed 表示数据包是否已经被解析
 	parsed bool
+
+	// 保存原始缓冲区
+	buffer []byte
+}
+
+func (p *Packet) getBuffer() []byte {
+	return p.buffer
 }
 
 // Parse the packet's headers
